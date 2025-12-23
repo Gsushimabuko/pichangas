@@ -1,0 +1,73 @@
+<div class="container">
+  <h1 class="title">Selecciona un Partido</h1>
+
+  <div class="select-container">
+    <select (change)="onMatchSelect($event)" class="match-select">
+      <option value="">-- Selecciona un partido --</option>
+      <option *ngFor="let match of matches" [value]="match.id">
+        {{ match.name }} - {{ match.date | date:'dd/MM/yy' }}
+      </option>
+    </select>
+  </div>
+
+  <div *ngIf="selectedMatch" class="content">
+    <div class="match-details">
+      <h2>{{ selectedMatch.name }}</h2>
+      <p><strong>Fecha y Hora:</strong> {{ selectedMatch.date | date:'medium' }}</p>
+      <div class="teams">
+        <div class="team">
+          <h3>Equipo A</h3>
+          <ul>
+            <li *ngFor="let player of selectedMatch.teamA; let i = index">
+              {{ player }} - {{ getPlayerAverage(selectedMatch.teamAIds[i]) }}
+              <br><small>Votos realizados: {{ getVoterCount(selectedMatch.teamAIds[i]) }}</small>
+            </li>
+          </ul>
+        </div>
+        <div class="team">
+          <h3>Equipo B</h3>
+          <ul>
+            <li *ngFor="let player of selectedMatch.teamB; let i = index">
+              {{ player }} - {{ getPlayerAverage(selectedMatch.teamBIds[i]) }}
+              <br><small>Votos realizados: {{ getVoterCount(selectedMatch.teamBIds[i]) }}</small>
+            </li>
+          </ul>
+        </div>
+      </div>
+      <p *ngIf="selectedMatch.winner"><strong>Ganador:</strong> {{ selectedMatch.winner }}</p>
+      <p *ngIf="!selectedMatch.winner"><strong>Ganador:</strong> Pendiente</p>
+      <p *ngIf="mvp"><strong>MVP:</strong> {{ mvp.name }} ⭐ ({{ mvp.average.toFixed(1) }})</p>
+    </div>
+
+    <div class="vote-card">
+      <h3>Votar por Jugador</h3>
+      <form (ngSubmit)="onSubmitVote()" class="vote-form">
+        <div class="form-group">
+          <label for="voter">Nombre del Votante:</label>
+          <select id="voter" [(ngModel)]="selectedVoter" name="voter" required>
+            <option value="">-- Selecciona votante --</option>
+            <option *ngFor="let player of players" [value]="player.id">{{ player.name }}</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="player">Nombre del Jugador a Votar:</label>
+          <select id="player" [(ngModel)]="selectedPlayer" name="player" required>
+            <option value="">-- Selecciona jugador --</option>
+            <option *ngFor="let player of players" [value]="player.id">{{ player.name }}</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="score">Puntaje (1-10):</label>
+          <select id="score" [(ngModel)]="score" name="score" required>
+            <option value="">-- Selecciona puntaje --</option>
+            <option *ngFor="let s of [1,2,3,4,5,6,7,8,9,10]" [value]="s">{{ s }}</option>
+          </select>
+        </div>
+
+        <button type="submit" class="submit-btn">Enviar Voto</button>
+      </form>
+    </div>
+  </div>
+</div>
