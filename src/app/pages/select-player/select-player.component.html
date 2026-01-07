@@ -40,33 +40,31 @@
     </div>
 
     <div class="vote-card">
-      <h3>Votar por Jugador</h3>
-      <form (ngSubmit)="onSubmitVote()" class="vote-form">
+      <h3>Votación de Jugadores</h3>
+      <form (ngSubmit)="onSubmitAllVotes()" class="vote-form">
         <div class="form-group">
-          <label for="voter">Nombre del Votante:</label>
+          <label for="voter">Tu Nombre:</label>
           <select id="voter" [(ngModel)]="selectedVoter" name="voter" required>
-            <option value="">-- Selecciona votante --</option>
+            <option value="">-- Selecciona tu nombre --</option>
             <option *ngFor="let player of players" [value]="player.id">{{ player.name }}</option>
           </select>
         </div>
 
-        <div class="form-group">
-          <label for="player">Nombre del Jugador a Votar:</label>
-          <select id="player" [(ngModel)]="selectedPlayer" name="player" required>
-            <option value="">-- Selecciona jugador --</option>
-            <option *ngFor="let player of players" [value]="player.id">{{ player.name }}</option>
-          </select>
+        <div *ngIf="selectedVoter && selectedMatch" class="form-group">
+          <label>Califica a los demás jugadores del partido:</label>
+          <div class="players-rating-list">
+            <div *ngFor="let player of getCurrentMatchPlayers()" [ngClass]="{'hidden': player.id === selectedVoter}" class="player-rating-item">
+              <span>{{ player.name }}</span>
+              <select [(ngModel)]="playerRatings[player.id]" [name]="'rating_' + player.id" required>
+                <option value="">-- Puntaje --</option>
+                <option *ngFor="let s of [1,2,3,4,5,6,7,8,9,10]" [value]="s">{{ s }}</option>
+              </select>
+            </div>
+          </div>
         </div>
 
-        <div class="form-group">
-          <label for="score">Puntaje (1-10):</label>
-          <select id="score" [(ngModel)]="score" name="score" required>
-            <option value="">-- Selecciona puntaje --</option>
-            <option *ngFor="let s of [1,2,3,4,5,6,7,8,9,10]" [value]="s">{{ s }}</option>
-          </select>
-        </div>
-
-        <button type="submit" class="submit-btn">Enviar Voto</button>
+        <div *ngIf="errorMessage" class="error-message">{{ errorMessage }}</div>
+        <button type="submit" class="submit-btn" [disabled]="!selectedVoter || !allRatingsValid()">Enviar Votación</button>
       </form>
     </div>
   </div>

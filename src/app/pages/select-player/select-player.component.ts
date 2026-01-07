@@ -31,11 +31,11 @@ export class SelectPlayerComponent implements OnInit {
   players: Player[] = [];
   selectedMatch: Match | null = null;
   selectedVoter: number | null = null;
-  selectedPlayer: number | null = null;
-  score: number | null = null;
+  playerRatings: { [key: number]: number | null } = {};
   playerAverages: { [key: number]: { sum: number; count: number } } = {};
   voterCounts: { [key: number]: number } = {};
   mvp: { name: string; average: number } | null = null;
+  errorMessage: string = '';
 
   async ngOnInit() {
     // Fetch players first
@@ -70,6 +70,9 @@ export class SelectPlayerComponent implements OnInit {
     const target = event.target as HTMLSelectElement;
     const matchId = +target.value;
     this.selectedMatch = this.matches.find(m => m.id === matchId) || null;
+
+    // Reset ratings when match changes
+    this.playerRatings = {};
 
     if (this.selectedMatch) {
       // Fetch votes for this match
@@ -113,30 +116,61 @@ export class SelectPlayerComponent implements OnInit {
     }
   }
 
-  async onSubmitVote() {
-    if (!this.selectedMatch || !this.selectedVoter || !this.selectedPlayer || this.score === null) {
-      alert('Por favor, completa todos los campos.');
+  getCurrentMatchPlayers(): Player[] {
+    if (!this.selectedMatch) return [];
+    const ids = [...this.selectedMatch.teamAIds, ...this.selectedMatch.teamBIds];
+    return this.players.filter(p => ids.includes(p.id));
+  }
+
+  allRatingsValid(): boolean {
+    if (!this.selectedVoter || !this.selectedMatch) return false;
+    // Solo los jugadores del partido, excepto el votante
+    return this.getCurrentMatchPlayers().filter(p => p.id !== this.selectedVoter).every(p => {
+      const rating = this.playerRatings[p.id];
+      return rating !== undefined && rating !== null && rating >= 1 && rating <= 10;
+    });
+  }
+
+  async onSubmitAllVotes() {
+    this.errorMessage = '';
+    if (!this.selectedMatch || !this.selectedVoter) {
+      this.errorMessage = 'Debes seleccionar tu nombre y un partido.';
+      return;
+    }
+    // Validar que todos los puntajes estén seleccionados
+    const missingRatings = this.getCurrentMatchPlayers().filter(p => p.id !== this.selectedVoter).filter(p => {
+      const rating = this.playerRatings[p.id];
+      return rating === undefined || rating === null;
+    });
+    if (missingRatings.length > 0) {
+      this.errorMessage = 'Debes calificar a todos los jugadores del partido.';
       return;
     }
 
-    const { error } = await supabase.from('vote').insert({
-      fk_player_voter: this.selectedVoter,
-      fk_player_vote: this.selectedPlayer,
-      score: this.score,
-      fk_match: this.selectedMatch.id
-    });
+    // Construir array de votos
+    const votes = this.getCurrentMatchPlayers()
+      .filter(p => p.id !== this.selectedVoter)
+      .map(p => ({
+        fk_player_voter: this.selectedVoter,
+        fk_player_vote: p.id,
+        score: this.playerRatings[p.id],
+        fk_match: this.selectedMatch!.id
+      }));
+
+    const { error } = await supabase.from('vote').insert(votes);
 
     if (error) {
-      console.error('Error submitting vote:', error);
-      alert('Error al enviar el voto.');
+      console.error('Error submitting votes:', error);
+      this.errorMessage = 'Error al enviar la votación.';
     } else {
-      alert('Voto enviado exitosamente.');
-      // Reset form and refresh data
+      alert('Votación enviada exitosamente.');
+      // Resetear calificaciones y votante
       this.selectedVoter = null;
-      this.selectedPlayer = null;
-      this.score = null;
+      this.playerRatings = {};
       // Re-fetch votes to update averages and counts
-      await this.onMatchSelect({ target: { value: this.selectedMatch.id.toString() } } as any);
+      if (this.selectedMatch) {
+        await this.onMatchSelect({ target: { value: this.selectedMatch.id.toString() } } as any);
+      }
     }
   }
 
