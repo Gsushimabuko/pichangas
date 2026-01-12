@@ -6,6 +6,7 @@ import { supabase } from '../../supabase.client';
 interface Player {
   id: number;
   name: string;
+  position: 'attack' | 'midfield' | 'defense' | 'GK';
   created_at: string;
 }
 
@@ -26,7 +27,26 @@ interface Match {
   styleUrl: './admin.component.css'
 })
 export class AdminComponent implements OnInit {
+            playerMatchesCount: { [playerId: number]: number } = {};
+          getChecked(event: Event): boolean {
+            return (event.target && (event.target as HTMLInputElement).checked) || false;
+          }
+        onMatchFilterChange(matchId: number, checked: boolean) {
+          if (checked) {
+            if (!this.selectedMatchIds.includes(matchId)) {
+              this.selectedMatchIds.push(matchId);
+            }
+          } else {
+            this.selectedMatchIds = this.selectedMatchIds.filter(id => id !== matchId);
+          }
+          this.loadPlayerAverages();
+        }
+      selectedMatchIds: number[] = [];
+    playerAverages: { [playerId: number]: number } = {};
   players: Player[] = [];
+  filteredPlayers: Player[] = [];
+  selectedPositionFilter: 'attack' | 'midfield' | 'defense' | 'GK' | '' = '';
+  newPlayerPosition: 'attack' | 'midfield' | 'defense' | 'GK' | '' = '';
   matches: Match[] = [];
   newPlayerName = '';
   newMatchName = '';
@@ -40,12 +60,63 @@ export class AdminComponent implements OnInit {
   async ngOnInit() {
     await this.loadPlayers();
     await this.loadMatches();
+    this.selectedMatchIds = this.matches.map(m => m.id); // por defecto todos seleccionados
+    await this.loadPlayerAverages();
   }
 
   async loadPlayers() {
     const { data, error } = await supabase.from('player').select('*');
     if (error) console.error(error);
-    else this.players = data as Player[];
+    else {
+      this.players = data as Player[];
+      this.applyPositionFilter();
+      await this.loadPlayerAverages();
+    }
+  }
+
+  async loadPlayerAverages() {
+      // Calcular cantidad de partidos jugados por jugador
+      const matchesCount: { [playerId: number]: Set<number> } = {};
+    if (!this.selectedMatchIds.length) {
+      this.playerAverages = {};
+      return;
+    }
+    const { data, error } = await supabase.from('vote').select('fk_player_vote, score, fk_match');
+    if (error) {
+      console.error(error);
+      this.playerAverages = {};
+      return;
+    }
+    const averages: { [playerId: number]: { sum: number; count: number } } = {};
+    for (const vote of data as any[]) {
+      if (!this.selectedMatchIds.includes(vote.fk_match)) continue;
+      const playerId = vote.fk_player_vote;
+      if (!averages[playerId]) averages[playerId] = { sum: 0, count: 0 };
+      averages[playerId].sum += vote.score;
+      averages[playerId].count += 1;
+      if (!matchesCount[playerId]) matchesCount[playerId] = new Set<number>();
+      matchesCount[playerId].add(vote.fk_match);
+    }
+    this.playerMatchesCount = {};
+    for (const playerId in matchesCount) {
+      this.playerMatchesCount[+playerId] = matchesCount[playerId].size;
+    }
+    this.playerAverages = {};
+    for (const playerId in averages) {
+      const { sum, count } = averages[playerId];
+      this.playerAverages[+playerId] = count ? +(sum / count).toFixed(2) : 0;
+    }
+  }
+
+  applyPositionFilter() {
+    let filtered = !this.selectedPositionFilter
+      ? this.players
+      : this.players.filter(p => p.position === this.selectedPositionFilter);
+    this.filteredPlayers = filtered.slice().sort((a, b) => {
+      const scoreA = this.playerAverages[a.id] ?? 0;
+      const scoreB = this.playerAverages[b.id] ?? 0;
+      return scoreB - scoreA;
+    });
   }
 
   async loadMatches() {
@@ -55,11 +126,12 @@ export class AdminComponent implements OnInit {
   }
 
   async addPlayer() {
-    if (!this.newPlayerName.trim()) return;
-    const { error } = await supabase.from('player').insert({ name: this.newPlayerName });
+    if (!this.newPlayerName.trim() || !this.newPlayerPosition) return;
+    const { error } = await supabase.from('player').insert({ name: this.newPlayerName, position: this.newPlayerPosition });
     if (error) console.error(error);
     else {
       this.newPlayerName = '';
+      this.newPlayerPosition = '';
       await this.loadPlayers();
     }
   }
@@ -97,11 +169,11 @@ export class AdminComponent implements OnInit {
   }
 
   async addPlayerToTeam() {
-    if (!this.selectedMatchId || !this.selectedPlayerToAdd || !this.selectedTeam) return;
+    if (!this.selectedMatchId || !this.selectedPlayerToAdd || !this.selectedTeam) { return; }
     const match = this.matches.find(m => m.id === this.selectedMatchId);
-    if (!match) return;
+    if (!match) { return; }
     const team = this.selectedTeam === 'A' ? 'teamA' : 'teamB';
-    if (match.teams[team].includes(this.selectedPlayerToAdd)) return; // already in
+    if (match.teams[team].includes(this.selectedPlayerToAdd)) { return; } // already in
     match.teams[team].push(this.selectedPlayerToAdd);
     const { error } = await supabase.from('match').update({ teams: match.teams }).eq('id', this.selectedMatchId);
     if (error) console.error(error);
@@ -109,7 +181,7 @@ export class AdminComponent implements OnInit {
   }
 
   async setWinner() {
-    if (!this.selectedMatchId || !this.selectedWinnerTeam) return;
+    if (!this.selectedMatchId || !this.selectedWinnerTeam) { return; }
     const winner = { team: this.selectedWinnerTeam };
     const { error } = await supabase.from('match').update({ winner }).eq('id', this.selectedMatchId);
     if (error) console.error(error);
@@ -117,9 +189,9 @@ export class AdminComponent implements OnInit {
   }
 
   async removePlayerFromTeam(playerId: number, team: 'A' | 'B') {
-    if (!this.selectedMatchId) return;
+    if (!this.selectedMatchId) { return; }
     const match = this.matches.find(m => m.id === this.selectedMatchId);
-    if (!match) return;
+    if (!match) { return; }
     const teamKey = team === 'A' ? 'teamA' : 'teamB';
     match.teams[teamKey] = match.teams[teamKey].filter(id => id !== playerId);
     const { error } = await supabase.from('match').update({ teams: match.teams }).eq('id', this.selectedMatchId);

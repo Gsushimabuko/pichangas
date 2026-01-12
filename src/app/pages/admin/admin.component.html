@@ -5,15 +5,54 @@
     <h2>Jugadores</h2>
     <div class="add-form">
       <input [(ngModel)]="newPlayerName" placeholder="Nombre del jugador" />
+      <select [(ngModel)]="newPlayerPosition">
+        <option value="">Posición</option>
+        <option value="attack">Delantero</option>
+        <option value="midfield">Mediocampista</option>
+        <option value="defense">Defensa</option>
+        <option value="GK">Arquero</option>
+      </select>
       <button (click)="addPlayer()">Agregar Jugador</button>
     </div>
-    <ul class="list">
-      <li *ngFor="let player of players">
-        {{ player.name }}
-        <button (click)="deletePlayer(player.id)">Eliminar</button>
-      </li>
-    </ul>
+    <div class="add-form">
+      <select [(ngModel)]="selectedPositionFilter" (change)="applyPositionFilter()">
+        <option value="">Todas las posiciones</option>
+        <option value="attack">Delantero</option>
+        <option value="midfield">Mediocampista</option>
+        <option value="defense">Defensa</option>
+        <option value="GK">Arquero</option>
+      </select>
+    </div>
+    <table class="list" style="width:100%;">
+      <thead>
+        <tr>
+          <th>Nombre</th>
+          <th>Posición</th>
+          <th>Puntaje promedio</th>
+          <th>Partidos jugados</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let player of filteredPlayers">
+          <td>{{ player.name }}</td>
+          <td>{{ player.position }}</td>
+          <td>{{ playerAverages[player.id] || 0 }}</td>
+          <td>{{ playerMatchesCount[player.id] || 0 }}</td>
+          <td><button (click)="deletePlayer(player.id)">Eliminar</button></td>
+        </tr>
+      </tbody>
+    </table>
   </section>
+<section class="section">
+  <h2>Filtrar partidos para promedios</h2>
+  <div class="add-form" style="flex-wrap: wrap;">
+    <label *ngFor="let match of matches" style="margin-right: 1rem;">
+      <input type="checkbox" [checked]="selectedMatchIds.includes(match.id)" (change)="onMatchFilterChange(match.id, getChecked($event))" />
+      {{ match.name }}
+    </label>
+  </div>
+</section>
 
   <section class="section">
     <h2>Crear Partido</h2>
